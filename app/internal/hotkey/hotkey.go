@@ -1,40 +1,52 @@
 package hotkey
 
 import (
-	"errors"
+	"fmt"
+	"hdr_switcher/app/internal/notify"
+	"syscall"
 
-	"github.com/lxn/win"
 	"golang.org/x/sys/windows"
 )
 
 var (
-	user32               = windows.NewLazySystemDLL("user32.dll")
-	procRegisterHotKey   = user32.NewProc("RegisterHotKey")
-	procUnregisterHotKey = user32.NewProc("UnregisterHotKey")
+
+	// Library
+	libuser32 = windows.NewLazySystemDLL("user32.dll")
+
+	registerHotKey   = libuser32.NewProc("RegisterHotKey")
+	unregisterHotKey = libuser32.NewProc("UnregisterHotKey")
 )
 
-// Регистрирует глобальный хоткей через WinAPI.
-func RegisterHotKey(hWnd win.HWND, id int, fsModifiers uint, vk uint) error {
-	if !registerHotKeyRaw(uintptr(hWnd), int32(id), uint32(fsModifiers), uint32(vk)) {
-		return errors.New("RegisterHotKey failed")
-	}
-	return nil
-}
+func RegisterHotKey(hwnd windows.HWND, id int, fsModifiers, vk uint) bool {
 
-func UnregisterHotKeyRaw(hwnd uintptr, id int32) bool {
-	r1, _, _ := procUnregisterHotKey.Call(
-		hwnd,
-		uintptr(id),
-	)
-	return r1 != 0
-}
+	// runtime.LockOSThread()
+	// defer runtime.UnlockOSThread()
 
-func registerHotKeyRaw(hwnd uintptr, id int32, fsModifiers uint32, vk uint32) bool {
-	r1, _, _ := procRegisterHotKey.Call(
-		hwnd,
+	// runtime.LockOSThread()
+
+	ret, _, e1 := syscall.SyscallN(registerHotKey.Addr(),
+		4,
+		uintptr(hwnd),
 		uintptr(id),
 		uintptr(fsModifiers),
 		uintptr(vk),
-	)
-	return r1 != 0
+		0,
+		0)
+
+	if ret == 0 {
+		// e1 — это already GetLastError; он может быть syscall.Errno(1409) и т.п.
+		notify.Send("HDR Toggle", fmt.Sprintf("Не удалось зарегистрировать хоткей: %v", e1))
+		// Не падаем сразу — попробуем альтернативу
+	}
+	return ret != 0
+}
+
+func UnregisterHotKey(hwnd windows.HWND, id int) bool {
+	ret, _, _ := syscall.SyscallN(unregisterHotKey.Addr(),
+		2,
+		uintptr(hwnd),
+		uintptr(id),
+		0)
+
+	return ret != 0
 }

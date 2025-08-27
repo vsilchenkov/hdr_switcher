@@ -9,17 +9,22 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 
 	"github.com/getlantern/systray"
 	"github.com/lxn/win"
+	"golang.org/x/sys/windows"
 )
 
 const (
 	// CTRL + F12
-	MOD_CONTROL = 0x0002
 	MOD_ALT     = 0x0001
+	MOD_CONTROL = 0x0002
 	VK_G        = 0x47
 	VK_F12      = 0x7B
+	VK_F11      = 0x7A
+	VK_F10      = 0x79
+	VK_F9       = 0x78
 
 	HOTKEY_ID = 1
 )
@@ -30,6 +35,8 @@ func Run() {
 }
 
 func onReady() {
+
+	// runtime.LockOSThread()
 
 	systray.SetTitle("HDR Toggle")
 	systray.SetTooltip("Ctrl+F12: Toggle HDR via HDRCmd")
@@ -44,9 +51,11 @@ func onReady() {
 	mQuit := systray.AddMenuItem("Quit", "Выход")
 
 	// Регистрируем глобальный хоткей
-	if err := hotkey.RegisterHotKey(win.HWND(0), HOTKEY_ID, MOD_CONTROL, VK_F12); err != nil {
-		notify.Send("HDR Toggle", fmt.Sprintf("Не удалось зарегистрировать хоткей Ctrl+F12: %v", err))
-		log.Printf("registerHotKey error: %v", err)
+	mods := MOD_CONTROL | MOD_ALT
+	if !hotkey.RegisterHotKey(0, HOTKEY_ID, uint(mods), VK_F9) {
+		// err := windows.GetLastError()
+		// notify.Send("HDR Toggle", fmt.Sprintf("Не удалось зарегистрировать хоткей: %v", err))
+		 log.Fatal("RegisterHotKey failed") // часто ERROR_HOTKEY_ALREADY_REGISTERED
 	} else {
 		go messageLoop()
 	}
@@ -90,7 +99,7 @@ func onReady() {
 
 func onExit() {
 	// Снимаем хоткей
-	hotkey.UnregisterHotKeyRaw(uintptr(win.HWND(0)), int32(HOTKEY_ID))
+	hotkey.UnregisterHotKey(windows.HWND(0), HOTKEY_ID)
 }
 
 // Цикл обработки сообщений, ловим WM_HOTKEY.
