@@ -19,4 +19,4 @@ profile
 # vendor/
 # .env
 
-web
+!HDRTray/*.exe
