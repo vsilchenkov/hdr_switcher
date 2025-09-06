@@ -4,9 +4,12 @@
 package main
 
 import (
-	_ "embed" 
+	_ "embed"
 	"hdr_switcher/app/internal/logging"
 	"hdr_switcher/app/internal/tray"
+	"os"
+	"os/signal"
+	"syscall"
 )
 
 ////go:embed icon.ico
@@ -14,8 +17,16 @@ import (
 
 func main() {
 
-	logging.Setup()
+	logging.Init(logging.Config{
+		OutputInFile: false})
 
 	tray.Run()
+
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		tray.Quit()
+	}()
 
 }

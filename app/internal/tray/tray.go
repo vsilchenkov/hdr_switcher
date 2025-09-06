@@ -2,144 +2,97 @@ package tray
 
 import (
 	"fmt"
-	"hdr_switcher/app/internal/hdr"
+	"hdr_switcher/app/internal/logging"
 	"hdr_switcher/app/internal/notify"
-	"log"
+	"hdr_switcher/assets"
+	"log/slog"
 	"os"
 	"os/exec"
-	"os/signal"
 	"path/filepath"
-	"syscall"	
+	"time"
 
 	"github.com/getlantern/systray"
 
 	gHotkey "golang.design/x/hotkey"
+	//https://github.com/energye/systray
 )
 
 const (
-	// CTRL + F12
-	MOD_ALT     = 0x0001
-	MOD_CONTROL = 0x0002
-	VK_G        = 0x47
-	VK_F12      = 0x7B
-	VK_F11      = 0x7A
-	VK_F10      = 0x79
-	VK_F9       = 0x78
-
-	HOTKEY_ID = 1
+	titleTray         = "HDR Toggle"
+	hotKeySwitch_Name = "Ctrl+F12"
 )
+
+type menuItems struct {
+	toggle     *systray.MenuItem
+	status     *systray.MenuItem
+	openFolder *systray.MenuItem
+	quit       *systray.MenuItem
+}
 
 var hk *gHotkey.Hotkey
 
 func Run() {
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, os.Interrupt, syscall.SIGTERM)
 
-	// Запускаем горутину, которая будет ждать сигнала.
-	go func() {
-		sig := <-sigs
-		log.Printf("Получен сигнал: %s. Запускаем процедуру выхода.", sig)
-		// Инициируем корректное завершение работы systray.
-		// Это приведет к вызову onExit.
-		systray.Quit()
-	}()
-
-	log.Println("Запуск приложения в системном трее...")
-	// Запуск блокирующего цикла systray.
-	// onExit будет вызван, когда systray.Quit() сработает.
+	slog.Info("Запуск приложения в системном трее...")
 	systray.Run(onReady, onExit)
-	log.Println("Приложение завершило работу.")
+}
+
+func Quit() {
+	systray.Quit()
 }
 
 func onReady() {
 
-	// Устанавливаем иконку сразу после запуска
-	// systray.SetIcon(iconData) // <-- ВОТ ЭТА СТРОКА
+	systray.SetIcon(assets.IconHDROff)
 
-	// runtime.LockOSThread()
+	items := menuItems{}
 
-	systray.SetTitle("HDR Toggle")
+	systray.SetTitle(titleTray)
 	systray.SetTooltip("Ctrl+F12: Toggle HDR")
-	//systray.SetTooltip("Ctrl+Alt+F9: Toggle HDR")
 
-	mToggle := systray.AddMenuItem("Toggle HDR (Ctrl+F12)", "Переключить HDR")
-	// mToggle := systray.AddMenuItem("Toggle HDR (Ctrl+Alt+F9)", "Переключить HDR")
-
-	mOn := systray.AddMenuItem("Force ON", "Включить HDR")
-	mOff := systray.AddMenuItem("Force OFF", "Выключить HDR")
+	items.toggle = systray.AddMenuItem("Toggle HDR (Ctrl+F12)", "Переключить HDR")
+	items.status = systray.AddMenuItem("Show status", "Показать состояние HDR")
 	systray.AddSeparator()
-	mStatus := systray.AddMenuItem("Show status", "Показать состояние HDR")
-	mOpenFolder := systray.AddMenuItem("Open app folder", "Открыть папку приложения")
-	systray.AddSeparator()
-	mQuit := systray.AddMenuItem("Quit", "Выход")
 
-	// Регистрируем глобальный хоткей
-	// mods := MOD_CONTROL | MOD_ALT
-	// if !hotkey.RegisterHotKey(0, HOTKEY_ID, uint(mods), VK_F9) {
-	// 	// err := windows.GetLastError()
-	// 	// notify.Send("HDR Toggle", fmt.Sprintf("Не удалось зарегистрировать хоткей: %v", err))
-	// 	log.Fatal("RegisterHotKey failed") // часто ERROR_HOTKEY_ALREADY_REGISTERED
-	// } else {
-	// 	go messageLoop()
-	// }
+	items.openFolder = systray.AddMenuItem("Open app folder", "Открыть папку приложения")
+	systray.AddSeparator()
+	items.quit = systray.AddMenuItem("Quit", "Выход")
+
+	registerHotKey()
+
+	// Обновление UI
+	updateUI(items.toggle)
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			updateUI(items.toggle)
+		}
+	}()
+
+	// Обработчики пунктов меню
+	go events(&items)
+
+}
+
+func registerHotKey() {
 
 	hk = gHotkey.New(
-		//[]gHotkey.Modifier{gHotkey.ModCtrl, gHotkey.ModAlt},
-		//gHotkey.KeyF9,
-		[]gHotkey.Modifier{gHotkey.ModCtrl}, 	gHotkey.KeyF12,
+		[]gHotkey.Modifier{gHotkey.ModCtrl}, gHotkey.KeyF12,
 	)
 
 	err := hk.Register()
 	if err != nil {
-		log.Printf("Не удалось зарегистрировать хоткей: %v", err)
-		notify.Send("HDR Toggle", fmt.Sprintf("Не удалось зарегистрировать хоткей: %v", err))
+		i := "Не удалось зарегистрировать хоткей"
+		slog.Error(i, logging.Err(err))
+		notify.ShowBalloon("HDR Toggle", i)
 	} else {
-		log.Println("Хоткей Ctrl+Alt+F9 успешно зарегистрирован.")
+		slog.Debug("Хоткей успешно зарегистрирован", slog.String("Hotkey", hotKeySwitch_Name))
 	}
-
-	// Обработчики пунктов меню
-	go func() {
-		for {
-			select {
-			case <-hk.Keydown():
-				if err := hdr.ToggleHDR(); err != nil {
-					notify.Send("HDR Toggle", fmt.Sprintf("Ошибка переключения: %v", err))
-				}
-			case <-mToggle.ClickedCh:
-				if err := hdr.ToggleHDR(); err != nil {
-					notify.Send("HDR Toggle", fmt.Sprintf("Ошибка переключения: %v", err))
-				}
-			case <-mOn.ClickedCh:
-				if err := hdr.SetHDR(true); err != nil {
-					notify.Send("HDR Toggle", fmt.Sprintf("Ошибка включения: %v", err))
-				} else {
-					notify.Send("HDR Toggle", "HDR включён")
-				}
-			case <-mOff.ClickedCh:
-				if err := hdr.SetHDR(false); err != nil {
-					notify.Send("HDR Toggle", fmt.Sprintf("Ошибка выключения: %v", err))
-				} else {
-					notify.Send("HDR Toggle", "HDR выключен")
-				}
-			case <-mStatus.ClickedCh:
-				state, err := hdr.GetHDRState()
-				if err != nil {
-					notify.Send("HDR Toggle", fmt.Sprintf("Статус: ошибка — %v", err))
-				} else {
-					notify.Send("HDR Toggle", fmt.Sprintf("Статус: %s", state))
-				}
-			case <-mOpenFolder.ClickedCh:
-				_ = openAppFolder()
-			case <-mQuit.ClickedCh:
-				systray.Quit()
-				return
-			}
-		}
-	}()
 }
 
 func onExit() {
-	cleanup()	
+	cleanup()
 }
 
 func cleanup() {
@@ -147,30 +100,10 @@ func cleanup() {
 	if hk != nil {
 		err := hk.Unregister()
 		if err != nil {
-			log.Printf("Не удалось отменить регистрацию хоткея: %v", err)
+			slog.Error("Не удалось отменить регистрацию хоткея", logging.Err(err))
 		}
 	}
 }
-
-// Цикл обработки сообщений, ловим WM_HOTKEY.
-// func messageLoop() {
-// 	var msg win.MSG
-// 	for {
-// 		ret := win.GetMessage(&msg, 0, 0, 0)
-// 		if ret == 0 || ret == -1 {
-// 			break
-// 		}
-// 		if msg.Message == win.WM_HOTKEY {
-// 			if id := int(msg.WParam); id == HOTKEY_ID {
-// 				if err := hdr.ToggleHDR(); err != nil {
-// 					notify.Send("HDR Toggle", fmt.Sprintf("Ошибка переключения: %v", err))
-// 				}
-// 			}
-// 		}
-// 		win.TranslateMessage(&msg)
-// 		win.DispatchMessage(&msg)
-// 	}
-// }
 
 func openAppFolder() error {
 	exe, err := os.Executable()

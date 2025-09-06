@@ -21,6 +21,9 @@ const (
 	// https://github.com/res2k/HDRTray
 	hdrCmdName = "HDRTray\\HDRCmd.exe" // или "HDRCmd" если в PATH без .exe
 
+	StateOn          = "on"
+	StateOff         = "off"
+	StateUnsupported = "unsupported"
 )
 
 // Возвращает "on", "off", "unsupported".
@@ -56,22 +59,22 @@ func GetHDRState() (string, error) {
 
 	switch exitCode {
 	case 0:
-		return "on", nil
+		return StateOn, nil
 	case 1:
-		return "off", nil
+		return StateOff, nil
 	case 2:
-		return "unsupported", nil
+		return StateUnsupported, nil
 	default:
 		// на случай иных кодов — попробуем по тексту вывода
 		txt := out.String() + errb.String()
-		if containsInsensitive(txt, "on") {
-			return "on", nil
+		if containsInsensitive(txt, StateOn) {
+			return StateOn, nil
 		}
-		if containsInsensitive(txt, "off") {
-			return "off", nil
+		if containsInsensitive(txt, StateOff) {
+			return StateOff, nil
 		}
-		if containsInsensitive(txt, "unsupported") {
-			return "unsupported", nil
+		if containsInsensitive(txt, StateUnsupported) {
+			return StateUnsupported, nil
 		}
 		return "", fmt.Errorf("неизвестный код возврата HDRCmd status: %d, вывод: %s", exitCode, txt)
 	}
@@ -126,12 +129,12 @@ func ToggleHDR() error {
 		// если статус получить не удалось — попробуем «переключить вслепую» через статус->off/on fallback
 		// сначала попробуем включить
 		if err2 := SetHDR(true); err2 == nil {
-			notify.Send("HDR Toggle", "HDR включён")
+			notify.ShowBalloon("HDR Toggle", "HDR включён")
 			return nil
 		}
 		// затем выключить
 		if err3 := SetHDR(false); err3 == nil {
-			notify.Send("HDR Toggle", "HDR выключен")
+			notify.ShowBalloon("HDR Toggle", "HDR выключен")
 			return nil
 		}
 		return fmt.Errorf("не удалось определить состояние и выполнить переключение: %w", err)
@@ -142,14 +145,14 @@ func ToggleHDR() error {
 		if err := SetHDR(false); err != nil {
 			return err
 		}
-		notify.Send("HDR Toggle", "HDR выключен")
+		notify.ShowBalloon("HDR Toggle", "HDR выключен")
 	case "off":
 		if err := SetHDR(true); err != nil {
 			return err
 		}
-		notify.Send("HDR Toggle", "HDR включён")
+		notify.ShowBalloon("HDR Toggle", "HDR включён")
 	case "unsupported":
-		notify.Send("HDR Toggle", "HDR не поддерживается данным дисплеем/системой")
+		notify.ShowBalloon("HDR Toggle", "HDR не поддерживается данным дисплеем/системой")
 	default:
 		return fmt.Errorf("неизвестное состояние: %s", state)
 	}
