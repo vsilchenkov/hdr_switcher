@@ -8,33 +8,35 @@ import (
 	"hdr_switcher/assets"
 	"log/slog"
 
-	"github.com/getlantern/systray"
+	"github.com/energye/systray"
 )
 
-func events(items *menuItems) {
+// func events(items *menuItems) {
 
-	for {
-		select {
-		case <-hk.Keydown():
-			onClicktoggle(items.toggle)	
-		case <-items.toggle.ClickedCh:
-			onClicktoggle(items.toggle)	
-		case <-items.status.ClickedCh:
-			state, err := hdr.GetHDRState()
-			if err != nil {
-				notify.ShowBalloon(titleTray, fmt.Sprintf("Статус: ошибка — %v", err))
-			} else {
-				notify.ShowBalloon(titleTray, fmt.Sprintf("Статус: %s", state))
-			}
-		case <-items.openFolder.ClickedCh:
-			_ = openAppFolder()
-		case <-items.quit.ClickedCh:
-			systray.Quit()
-			return
-		}
+// 	for {
+// 		select {
+// 		case <-hk.Keydown():
+// 			onClicktoggle(items.toggle)
+// 		case <-items.toggle.ClickedCh:
+// 			onClicktoggle(items.toggle)
+// 		case <-items.status.ClickedCh:
+
+// 		case <-items.openFolder.ClickedCh:
+// 			_ = openAppFolder()
+// 		case <-items.quit:
+// 			systray.Quit()
+// 			return
+// 		}
+// 	}
+// }
+func onClickShowStatus() {
+	state, err := hdr.GetHDRState()
+	if err != nil {
+		notify.ShowBalloon(titleTray, fmt.Sprintf("Статус: ошибка — %v", err))
+	} else {
+		notify.ShowBalloon(titleTray, fmt.Sprintf("Статус: %s", state))
 	}
 }
-
 func onClicktoggle(item *systray.MenuItem) {
 
 	if err := hdr.ToggleHDR(); err != nil {

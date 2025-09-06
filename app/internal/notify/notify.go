@@ -4,11 +4,13 @@ import (
 	"github.com/gen2brain/beeep"
 )
 
-func init() {
-	beeep.AppName = "HDR switcher"
+func Init(appName string) {
+	beeep.AppName = appName
 }
 
+const icon = "info.png"
+
 func ShowBalloon(title, text string) error {
-	err := beeep.Notify(title, text, "info.png")
+	err := beeep.Notify(title, text, icon)
 	return err
 }

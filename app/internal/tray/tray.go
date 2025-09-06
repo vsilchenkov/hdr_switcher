@@ -1,7 +1,6 @@
 package tray
 
 import (
-	"fmt"
 	"hdr_switcher/app/internal/logging"
 	"hdr_switcher/app/internal/notify"
 	"hdr_switcher/assets"
@@ -11,10 +10,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/getlantern/systray"
+	"github.com/energye/systray"
 
 	gHotkey "golang.design/x/hotkey"
-	//https://github.com/energye/systray
 )
 
 const (
@@ -50,15 +48,25 @@ func onReady() {
 	systray.SetTitle(titleTray)
 	systray.SetTooltip("Ctrl+F12: Toggle HDR")
 
-	items.toggle = systray.AddMenuItem("Toggle HDR (Ctrl+F12)", "Переключить HDR")
-	items.status = systray.AddMenuItem("Show status", "Показать состояние HDR")
-	systray.AddSeparator()
+	systray.SetOnRClick(func(menu systray.IMenu) {
+		menu.ShowMenu()
+	})
 
+	systray.CreateMenu()
+	items.toggle = systray.AddMenuItem("Toggle HDR (Ctrl+F12)", "Переключить HDR")
+	items.toggle.Click(func() { onClicktoggle(items.toggle) })
+	items.status = systray.AddMenuItem("Show status", "Показать состояние HDR")
+	items.status.Click(onClickShowStatus)
+
+	systray.AddSeparator()
 	items.openFolder = systray.AddMenuItem("Open app folder", "Открыть папку приложения")
+	items.openFolder.Click(openAppFolder)
+
 	systray.AddSeparator()
 	items.quit = systray.AddMenuItem("Quit", "Выход")
+	items.quit.Click(func() { systray.Quit() })
 
-	registerHotKey()
+	registerHotKey(items)
 
 	// Обновление UI
 	updateUI(items.toggle)
@@ -71,11 +79,11 @@ func onReady() {
 	}()
 
 	// Обработчики пунктов меню
-	go events(&items)
+	// go events(&items)
 
 }
 
-func registerHotKey() {
+func registerHotKey(items menuItems) {
 
 	hk = gHotkey.New(
 		[]gHotkey.Modifier{gHotkey.ModCtrl}, gHotkey.KeyF12,
@@ -89,6 +97,12 @@ func registerHotKey() {
 	} else {
 		slog.Debug("Хоткей успешно зарегистрирован", slog.String("Hotkey", hotKeySwitch_Name))
 	}
+
+	go func() {
+		for range hk.Keydown() {
+			onClicktoggle(items.toggle)
+		}
+	}()
 }
 
 func onExit() {
@@ -105,12 +119,13 @@ func cleanup() {
 	}
 }
 
-func openAppFolder() error {
+func openAppFolder() {
 	exe, err := os.Executable()
 	if err != nil {
-		return fmt.Errorf("не удалось получить путь к exe: %w", err)
+		slog.Error("open app folder", slog.Any("error", err))
+		return
 	}
 	dir := filepath.Dir(exe)
 	cmd := exec.Command("explorer.exe", dir)
-	return cmd.Start()
+	cmd.Start()
 }
