@@ -14,16 +14,16 @@ import (
 func onClickShowStatus() {
 	state, err := hdr.GetHDRState()
 	if err != nil {
-		notify.ShowBalloon(titleTray, fmt.Sprintf("Статус: ошибка — %v", err))
+		notify.ShowBalloon("", fmt.Sprintf("Статус HDR: ошибка — %v", err))
 	} else {
-		notify.ShowBalloon(titleTray, fmt.Sprintf("Статус: %s", state))
+		notify.ShowBalloon("", fmt.Sprintf("Статус HDR: %s", state))
 	}
 }
 
 func onClicktoggle(item *systray.MenuItem) {
 
 	if err := hdr.ToggleHDR(); err != nil {
-		notify.ShowBalloon(titleTray, fmt.Sprintf("Ошибка переключения: %v", err))
+		notify.ShowBalloon("", fmt.Sprintf("Ошибка переключения HDR: %v", err))
 	} else {
 		updateUI(item)
 	}
