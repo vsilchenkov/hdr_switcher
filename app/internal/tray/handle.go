@@ -11,24 +11,6 @@ import (
 	"github.com/energye/systray"
 )
 
-// func events(items *menuItems) {
-
-// 	for {
-// 		select {
-// 		case <-hk.Keydown():
-// 			onClicktoggle(items.toggle)
-// 		case <-items.toggle.ClickedCh:
-// 			onClicktoggle(items.toggle)
-// 		case <-items.status.ClickedCh:
-
-// 		case <-items.openFolder.ClickedCh:
-// 			_ = openAppFolder()
-// 		case <-items.quit:
-// 			systray.Quit()
-// 			return
-// 		}
-// 	}
-// }
 func onClickShowStatus() {
 	state, err := hdr.GetHDRState()
 	if err != nil {
@@ -37,6 +19,7 @@ func onClickShowStatus() {
 		notify.ShowBalloon(titleTray, fmt.Sprintf("Статус: %s", state))
 	}
 }
+
 func onClicktoggle(item *systray.MenuItem) {
 
 	if err := hdr.ToggleHDR(); err != nil {

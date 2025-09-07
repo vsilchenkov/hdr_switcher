@@ -1,6 +1,7 @@
 package tray
 
 import (
+	"fmt"
 	"hdr_switcher/app/internal/logging"
 	"hdr_switcher/app/internal/notify"
 	"hdr_switcher/assets"
@@ -17,7 +18,7 @@ import (
 
 const (
 	titleTray         = "HDR Toggle"
-	hotKeySwitch_Name = "Ctrl+F12"
+	hotKeySwitch_Name = "Ctrl+Alt+F12"
 )
 
 type menuItems struct {
@@ -31,6 +32,7 @@ var hk *gHotkey.Hotkey
 
 func Run() {
 
+	// notify.ShowBalloon("","Launching the application in the system tray")
 	slog.Info("Запуск приложения в системном трее...")
 	systray.Run(onReady, onExit)
 }
@@ -46,14 +48,14 @@ func onReady() {
 	items := menuItems{}
 
 	systray.SetTitle(titleTray)
-	systray.SetTooltip("Ctrl+F12: Toggle HDR")
+	systray.SetTooltip(fmt.Sprintf("%s: Toggle HDR",hotKeySwitch_Name))
 
 	systray.SetOnRClick(func(menu systray.IMenu) {
 		menu.ShowMenu()
 	})
 
 	systray.CreateMenu()
-	items.toggle = systray.AddMenuItem("Toggle HDR (Ctrl+F12)", "Переключить HDR")
+	items.toggle = systray.AddMenuItem(fmt.Sprintf("Toggle HDR (%s)",hotKeySwitch_Name), "Переключить HDR")
 	items.toggle.Click(func() { onClicktoggle(items.toggle) })
 	items.status = systray.AddMenuItem("Show status", "Показать состояние HDR")
 	items.status.Click(onClickShowStatus)
@@ -66,27 +68,28 @@ func onReady() {
 	items.quit = systray.AddMenuItem("Quit", "Выход")
 	items.quit.Click(func() { systray.Quit() })
 
+	systray.SetOnClick(func(menu systray.IMenu) {
+		onClicktoggle(items.toggle) 
+	})
+
 	registerHotKey(items)
 
 	// Обновление UI
 	updateUI(items.toggle)
 	go func() {
-		ticker := time.NewTicker(5 * time.Second)
+		ticker := time.NewTicker(5 * time.Minute)
 		defer ticker.Stop()
 		for range ticker.C {
 			updateUI(items.toggle)
 		}
 	}()
 
-	// Обработчики пунктов меню
-	// go events(&items)
-
 }
 
 func registerHotKey(items menuItems) {
 
 	hk = gHotkey.New(
-		[]gHotkey.Modifier{gHotkey.ModCtrl}, gHotkey.KeyF12,
+		[]gHotkey.Modifier{gHotkey.ModCtrl, gHotkey.ModAlt}, gHotkey.KeyF12,
 	)
 
 	err := hk.Register()

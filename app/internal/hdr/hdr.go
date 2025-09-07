@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"syscall"
 	"time"
 )
 
@@ -19,7 +20,8 @@ const (
 
 	// имя утилиты; если не в PATH, положите рядом с exe
 	// https://github.com/res2k/HDRTray
-	hdrCmdName = "HDRTray\\HDRCmd.exe" // или "HDRCmd" если в PATH без .exe
+	hdrCmdName   = "HDRCmd.exe"
+	hdrCmdFolder = "HDRTray"
 
 	StateOn          = "on"
 	StateOff         = "off"
@@ -34,6 +36,9 @@ func GetHDRState() (string, error) {
 
 	// Предполагаем режим: HDRCmd status -m exitcode
 	cmd := exec.CommandContext(ctx, cmdPath, "status", "-m", "exitcode")
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		HideWindow: true, // Скрывает консольное окно
+	}
 	var out bytes.Buffer
 	var errb bytes.Buffer
 	cmd.Stdout = &out
@@ -52,8 +57,6 @@ func GetHDRState() (string, error) {
 			return "", fmt.Errorf("ошибка запуска HDRCmd status: %v (%s)", err, errb.String())
 		}
 	} else {
-		// успешный код 0 обычно тоже означает «on» в режиме exitcode,
-		// но уточняем ниже по таблице.
 		exitCode = 0
 	}
 
@@ -82,15 +85,17 @@ func GetHDRState() (string, error) {
 
 // Установить состояние HDR: true=on, false=off.
 func SetHDR(on bool) error {
+
 	cmdPath := ResolveHDRCmd()
 	ctx, cancel := context.WithTimeout(context.Background(), cmdTimeout)
 	defer cancel()
 
-	arg := "off"
+	arg := StateOff
 	if on {
-		arg = "on"
+		arg = StateOn
 	}
 	cmd := exec.CommandContext(ctx, cmdPath, arg)
+
 	var out bytes.Buffer
 	var errb bytes.Buffer
 	cmd.Stdout = &out
@@ -109,16 +114,10 @@ func SetHDR(on bool) error {
 	return nil
 }
 
-// Пытается найти HDRCmd: сначала в PATH, затем рядом с exe.
 func ResolveHDRCmd() string {
-	// Если утилита доступна в PATH
-	// if p, err := exec.LookPath(hdrCmdName); err == nil {
-	// 	return p
-	// }
-	// Иначе пробуем рядом
 	exe, _ := os.Executable()
 	dir := filepath.Dir(exe)
-	local := filepath.Join(dir, hdrCmdName)
+	local := filepath.Join(dir, hdrCmdFolder, hdrCmdName)
 	return local
 }
 
@@ -129,12 +128,12 @@ func ToggleHDR() error {
 		// если статус получить не удалось — попробуем «переключить вслепую» через статус->off/on fallback
 		// сначала попробуем включить
 		if err2 := SetHDR(true); err2 == nil {
-			notify.ShowBalloon("HDR Toggle", "HDR включён")
+			notify.ShowBalloon("", "HDR включён")
 			return nil
 		}
 		// затем выключить
 		if err3 := SetHDR(false); err3 == nil {
-			notify.ShowBalloon("HDR Toggle", "HDR выключен")
+			notify.ShowBalloon("", "HDR выключен")
 			return nil
 		}
 		return fmt.Errorf("не удалось определить состояние и выполнить переключение: %w", err)
@@ -145,14 +144,14 @@ func ToggleHDR() error {
 		if err := SetHDR(false); err != nil {
 			return err
 		}
-		notify.ShowBalloon("HDR Toggle", "HDR выключен")
+		notify.ShowBalloon("", "HDR выключен")
 	case "off":
 		if err := SetHDR(true); err != nil {
 			return err
 		}
-		notify.ShowBalloon("HDR Toggle", "HDR включён")
+		notify.ShowBalloon("", "HDR включён")
 	case "unsupported":
-		notify.ShowBalloon("HDR Toggle", "HDR не поддерживается данным дисплеем/системой")
+		notify.ShowBalloon("", "HDR не поддерживается данным дисплеем/системой")
 	default:
 		return fmt.Errorf("неизвестное состояние: %s", state)
 	}
