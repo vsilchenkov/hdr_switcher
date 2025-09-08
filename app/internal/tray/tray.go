@@ -48,17 +48,17 @@ func onReady() {
 	items := menuItems{}
 
 	systray.SetTitle(titleTray)
-	systray.SetTooltip(fmt.Sprintf("%s: Toggle HDR",hotKeySwitch_Name))
+	systray.SetTooltip(fmt.Sprintf("%s: Toggle HDR", hotKeySwitch_Name))
 
 	systray.SetOnRClick(func(menu systray.IMenu) {
 		menu.ShowMenu()
 	})
 
 	systray.CreateMenu()
-	items.toggle = systray.AddMenuItem(fmt.Sprintf("Toggle HDR (%s)",hotKeySwitch_Name), "Переключить HDR")
-	items.toggle.Click(func() { onClicktoggle(items.toggle) })
+	items.toggle = systray.AddMenuItem(fmt.Sprintf("Toggle HDR (%s)", hotKeySwitch_Name), "Переключить HDR")
+	items.toggle.Click(func() { onClicktoggle(items) })
 	items.status = systray.AddMenuItem("Show status", "Показать состояние HDR")
-	items.status.Click(onClickShowStatus)
+	items.status.Click(func ()  { onClickShowStatus(items)	})
 
 	systray.AddSeparator()
 	items.openFolder = systray.AddMenuItem("Open app folder", "Открыть папку приложения")
@@ -69,18 +69,18 @@ func onReady() {
 	items.quit.Click(func() { systray.Quit() })
 
 	systray.SetOnClick(func(menu systray.IMenu) {
-		onClicktoggle(items.toggle) 
+		onClicktoggle(items)
 	})
 
 	registerHotKey(items)
 
 	// Обновление UI
-	updateUI(items.toggle)
+	updateUI(items, "")
 	go func() {
-		ticker := time.NewTicker(5 * time.Minute)
+		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
 		for range ticker.C {
-			updateUI(items.toggle)
+			updateUI(items, "")
 		}
 	}()
 
@@ -103,7 +103,7 @@ func registerHotKey(items menuItems) {
 
 	go func() {
 		for range hk.Keydown() {
-			onClicktoggle(items.toggle)
+			onClicktoggle(items)
 		}
 	}()
 }

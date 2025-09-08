@@ -11,35 +11,39 @@ import (
 	"github.com/energye/systray"
 )
 
-func onClickShowStatus() {
+func onClickShowStatus(items menuItems) {
 	state, err := hdr.GetHDRState()
 	if err != nil {
 		notify.ShowBalloon("", fmt.Sprintf("Статус HDR: ошибка — %v", err))
 	} else {
 		notify.ShowBalloon("", fmt.Sprintf("Статус HDR: %s", state))
 	}
+	updateUI(items, state)
 }
 
-func onClicktoggle(item *systray.MenuItem) {
+func onClicktoggle(items menuItems) {
 
 	if err := hdr.ToggleHDR(); err != nil {
 		notify.ShowBalloon("", fmt.Sprintf("Ошибка переключения HDR: %v", err))
 	} else {
-		updateUI(item)
+		updateUI(items, "")
 	}
 }
 
-func updateUI(item *systray.MenuItem) {
-	state, err := hdr.GetHDRState()
-	if err != nil {
-		slog.Error("Не удалось получить статус HDR для обновления UI", logging.Err(err))
-		return
+func updateUI(items menuItems, state string) {
+	if state == "" {
+		s, err := hdr.GetHDRState()
+		if err != nil {
+			slog.Error("Не удалось получить статус HDR для обновления UI", logging.Err(err))
+			return
+		}
+		state = s
 	}
 	if state == hdr.StateOn {
-		item.Check()
+		items.toggle.Check()
 		systray.SetIcon(assets.IconHDROn)
 	} else {
-		item.Uncheck()
+		items.toggle.Uncheck()
 		systray.SetIcon(assets.IconHDROff)
 	}
 }

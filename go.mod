@@ -6,6 +6,7 @@ require (
 	github.com/energye/systray v1.0.2
 	github.com/gen2brain/beeep v0.11.1
 	golang.design/x/hotkey v0.4.1
+	golang.org/x/sys v0.36.0
 )
 
 require (
@@ -19,5 +20,4 @@ require (
 	github.com/sergeymakinen/go-ico v1.0.0-beta.0 // indirect
 	github.com/tadvi/systray v0.0.0-20190226123456-11a2b8fa57af // indirect
 	github.com/tevino/abool v0.0.0-20220530134649-2bfc934cb23c // indirect
-	golang.org/x/sys v0.35.0 // indirect
 )
