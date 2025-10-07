@@ -24,6 +24,7 @@ const (
 type menuItems struct {
 	toggle     *systray.MenuItem
 	status     *systray.MenuItem
+	autorun    *systray.MenuItem
 	openFolder *systray.MenuItem
 	quit       *systray.MenuItem
 }
@@ -58,7 +59,7 @@ func onReady() {
 	items.toggle = systray.AddMenuItem(fmt.Sprintf("Toggle HDR (%s)", hotKeySwitch_Name), "Переключить HDR")
 	items.toggle.Click(func() { onClicktoggle(items) })
 	items.status = systray.AddMenuItem("Show status", "Показать состояние HDR")
-	items.status.Click(func ()  { onClickShowStatus(items)	})
+	items.status.Click(func() { onClickShowStatus(items) })
 
 	systray.AddSeparator()
 	items.openFolder = systray.AddMenuItem("Open app folder", "Открыть папку приложения")
