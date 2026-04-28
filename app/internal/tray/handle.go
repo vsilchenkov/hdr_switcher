@@ -7,30 +7,33 @@ import (
 	"hdr_switcher/app/internal/notify"
 	"hdr_switcher/assets"
 	"log/slog"
+	"os"
+	"os/exec"
+	"path/filepath"
 
 	"github.com/energye/systray"
 )
 
-func onClickShowStatus(items menuItems) {
+func (m *menuItems) onClickShowStatus() {
 	state, err := hdr.GetHDRState()
 	if err != nil {
 		notify.ShowBalloon("", fmt.Sprintf("Статус HDR: ошибка — %v", err))
 	} else {
 		notify.ShowBalloon("", fmt.Sprintf("Статус HDR: %s", state))
 	}
-	updateUI(items, state)
+	m.updateUI(state)
 }
 
-func onClicktoggle(items menuItems) {
+func (m *menuItems) onClicktoggle() {
 
 	if err := hdr.ToggleHDR(); err != nil {
 		notify.ShowBalloon("", fmt.Sprintf("Ошибка переключения HDR: %v", err))
 	} else {
-		updateUI(items, "")
+		m.updateUI("")
 	}
 }
 
-func updateUI(items menuItems, state string) {
+func (m *menuItems) updateUI(state string) {
 	if state == "" {
 		s, err := hdr.GetHDRState()
 		if err != nil {
@@ -40,10 +43,59 @@ func updateUI(items menuItems, state string) {
 		state = s
 	}
 	if state == hdr.StateOn {
-		items.toggle.Check()
+		m.toggle.Check()
 		systray.SetIcon(assets.IconHDROn)
 	} else {
-		items.toggle.Uncheck()
+		m.toggle.Uncheck()
 		systray.SetIcon(assets.IconHDROff)
 	}
+}
+
+func (m *menuItems) changeAutorun() {
+	item := m.autorunItem
+	var err error
+	var msg string
+
+	if item.Checked() {
+		err = m.autorun.Disable()
+		msg = "Autorun disabled"
+	} else {
+		err = m.autorun.Enable()
+		msg = "Autorun enabled"
+	}
+
+	if err != nil {
+		slog.Error("Ошибка изменения автозапуска", logging.Err(err))
+		notify.ShowBalloon("", fmt.Sprintf("Error changed autorun: %v", err))
+		return
+	}
+
+	notify.ShowBalloon("", msg)
+	m.updateAutorunUI()
+}
+
+func (m *menuItems) updateAutorunUI() {
+
+	enabled, err := m.autorun.IsStartup()
+	if err != nil {
+		slog.Error("Не удалось получить статус автозапуска для обновления UI",
+			logging.Err(err))
+		return
+	}
+	if enabled {
+		m.autorunItem.Check()
+	} else {
+		m.autorunItem.Uncheck()
+	}
+}
+
+func (m *menuItems) openAppFolder() {
+	exe, err := os.Executable()
+	if err != nil {
+		slog.Error("open app folder", slog.Any("error", err))
+		return
+	}
+	dir := filepath.Dir(exe)
+	cmd := exec.Command("explorer.exe", dir)
+	cmd.Start()
 }

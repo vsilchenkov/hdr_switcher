@@ -1,11 +1,13 @@
 package notify
 
 import (
+	"hdr_switcher/app/internal/app"
+
 	"github.com/gen2brain/beeep"
 )
 
-func Init(appName string) {
-	beeep.AppName = appName
+func Init(c *app.App) {
+	beeep.AppName = c.Name
 }
 
 const icon = "info.png"

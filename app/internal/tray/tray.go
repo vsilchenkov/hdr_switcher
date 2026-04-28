@@ -2,13 +2,13 @@ package tray
 
 import (
 	"fmt"
+	"hdr_switcher/app/internal/app"
+	"hdr_switcher/app/internal/autorun"
 	"hdr_switcher/app/internal/logging"
 	"hdr_switcher/app/internal/notify"
 	"hdr_switcher/assets"
 	"log/slog"
-	"os"
-	"os/exec"
-	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/energye/systray"
@@ -17,119 +17,158 @@ import (
 )
 
 const (
-	titleTray         = "HDR Toggle"
-	hotKeySwitch_Name = "Ctrl+Alt+F12"
+	titleTray = "HDR Toggle"
 )
 
 type menuItems struct {
-	toggle     *systray.MenuItem
-	status     *systray.MenuItem
-	autorun    *systray.MenuItem
-	openFolder *systray.MenuItem
-	quit       *systray.MenuItem
+	toggle      *systray.MenuItem
+	status      *systray.MenuItem
+	autorunItem *systray.MenuItem
+	openFolder  *systray.MenuItem
+	quit        *systray.MenuItem
+
+	app     *app.App
+	autorun *autorun.Autorun
+	hk      *hotKey
 }
 
-var hk *gHotkey.Hotkey
+type hotKey struct {
+	*gHotkey.Hotkey
+	sync.Mutex
+}
 
-func Run() {
+func Run(app *app.App, autorun *autorun.Autorun) {
 
-	// notify.ShowBalloon("","Launching the application in the system tray")
+	hk := &hotKey{}
+
 	slog.Info("Запуск приложения в системном трее...")
-	systray.Run(onReady, onExit)
+	systray.Run(func() { onReady(app, hk, autorun) }, func() { onExit(hk) })
 }
 
 func Quit() {
 	systray.Quit()
 }
 
-func onReady() {
+func onReady(app *app.App, hk *hotKey, autorun *autorun.Autorun) {
 
 	systray.SetIcon(assets.IconHDROff)
 
-	items := menuItems{}
+	items := menuItems{
+		app:     app,
+		autorun: autorun,
+		hk:      hk,
+	}
+
+	hotKeySwitchName := app.Config.Hotkey.String()
 
 	systray.SetTitle(titleTray)
-	systray.SetTooltip(fmt.Sprintf("%s: Toggle HDR", hotKeySwitch_Name))
+	systray.SetTooltip(fmt.Sprintf("%s: Toggle HDR", hotKeySwitchName))
 
-	systray.SetOnRClick(func(menu systray.IMenu) {
-		menu.ShowMenu()
-	})
-
-	systray.CreateMenu()
-	items.toggle = systray.AddMenuItem(fmt.Sprintf("Toggle HDR (%s)", hotKeySwitch_Name), "Переключить HDR")
-	items.toggle.Click(func() { onClicktoggle(items) })
+	items.toggle = systray.AddMenuItem(fmt.Sprintf("Toggle HDR (%s)", hotKeySwitchName), "Переключить HDR")
+	items.toggle.Click(func() { items.onClicktoggle() })
 	items.status = systray.AddMenuItem("Show status", "Показать состояние HDR")
-	items.status.Click(func() { onClickShowStatus(items) })
+	items.status.Click(func() { items.onClickShowStatus() })
 
 	systray.AddSeparator()
 	items.openFolder = systray.AddMenuItem("Open app folder", "Открыть папку приложения")
-	items.openFolder.Click(openAppFolder)
+	items.openFolder.Click(items.openAppFolder)
+
+	items.autorunItem = systray.AddMenuItem("Autorun", "Автозагрузка")
+	items.autorunItem.Click(items.changeAutorun)
+	items.updateAutorunUI()
 
 	systray.AddSeparator()
 	items.quit = systray.AddMenuItem("Quit", "Выход")
 	items.quit.Click(func() { systray.Quit() })
 
 	systray.SetOnClick(func(menu systray.IMenu) {
-		onClicktoggle(items)
+		items.onClicktoggle()
 	})
 
-	registerHotKey(items)
+	systray.SetOnRClick(func(menu systray.IMenu) {
+		menu.ShowMenu()
+	})
+
+	items.registerHotKey()
 
 	// Обновление UI
-	updateUI(items, "")
+	items.updateUI("")
+
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("Panic recovered in UI update loop",
+					slog.Any("panic", r))
+			}
+		}()
 		ticker := time.NewTicker(1 * time.Minute)
 		defer ticker.Stop()
 		for range ticker.C {
-			updateUI(items, "")
+			items.updateUI("")
 		}
 	}()
 
 }
 
-func registerHotKey(items menuItems) {
+func (m *menuItems) registerHotKey() {
+	m.hk.Lock()
+	defer m.hk.Unlock()
 
-	hk = gHotkey.New(
-		[]gHotkey.Modifier{gHotkey.ModCtrl, gHotkey.ModAlt}, gHotkey.KeyF12,
-	)
-
-	err := hk.Register()
-	if err != nil {
-		i := "Не удалось зарегистрировать хоткей"
-		slog.Error(i, logging.Err(err))
-		notify.ShowBalloon("HDR Toggle", i)
-	} else {
-		slog.Debug("Хоткей успешно зарегистрирован", slog.String("Hotkey", hotKeySwitch_Name))
+	if m.hk.Hotkey != nil {
+		_ = m.hk.Hotkey.Unregister()
+		m.hk.Hotkey = nil
 	}
 
-	go func() {
-		for range hk.Keydown() {
-			onClicktoggle(items)
-		}
-	}()
-}
-
-func onExit() {
-	cleanup()
-}
-
-func cleanup() {
-	// Снимаем регистрацию хоткея при выходе
-	if hk != nil {
-		err := hk.Unregister()
-		if err != nil {
-			slog.Error("Не удалось отменить регистрацию хоткея", logging.Err(err))
-		}
-	}
-}
-
-func openAppFolder() {
-	exe, err := os.Executable()
+	mods, key, err := m.app.Config.Hotkey.Parse()
 	if err != nil {
-		slog.Error("open app folder", slog.Any("error", err))
+		slog.Error("Некорректная конфигурация хоткея", logging.Err(err))
+		notify.ShowBalloon("HDR Toggle", "Error in hotkey configuration")
 		return
 	}
-	dir := filepath.Dir(exe)
-	cmd := exec.Command("explorer.exe", dir)
-	cmd.Start()
+
+	m.hk.Hotkey = gHotkey.New(mods, key)
+
+	err = m.hk.Hotkey.Register()
+	if err != nil {
+		i := "Не удалось зарегистрировать хоткей " + m.app.Config.Hotkey.String()
+		slog.Error(i, logging.Err(err))
+		notify.ShowBalloon("HDR Toggle", i)
+		m.hk.Hotkey = nil
+		return
+	}
+
+	slog.Debug("Хоткей успешно зарегистрирован",
+		slog.String("Hotkey", m.app.Config.Hotkey.String()))
+
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("Panic recovered in hotkey listener",
+					slog.Any("panic", r))
+				notify.ShowBalloon("HDR Toggle", "An error occurred in hotkey listener")
+			}
+		}()
+		for range m.hk.Keydown() {
+			m.onClicktoggle()
+		}
+	}()
+}
+
+func onExit(hk *hotKey) {
+	cleanup(hk)
+}
+
+func cleanup(hk *hotKey) {
+	hk.Lock()
+	defer hk.Unlock()
+
+	// Снимаем регистрацию хоткея при выходе
+	if hk.Hotkey != nil {
+		err := hk.Hotkey.Unregister()
+		if err != nil {
+			slog.Error("Не удалось отменить регистрацию хоткея",
+				logging.Err(err))
+		}
+		hk.Hotkey = nil
+	}
 }

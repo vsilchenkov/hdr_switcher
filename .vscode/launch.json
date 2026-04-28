@@ -11,7 +11,7 @@
             "mode": "auto",
             "cwd": "${workspaceFolder}",
             "program": "${workspaceFolder}\\app\\cmd\\hdr_switcher\\main.go",
-            "args": [""],
+            "args": ["-debug"],
         },
     ]
 }

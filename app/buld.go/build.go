@@ -6,9 +6,13 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-func IsSingleInstance(appName string) (bool, windows.Handle, error) {
+type Build struct {
+	Name string
+}
 
-	mutexName := "Global\\630a2b47-6b7b-4928-9b12-88bc16312a93-" + appName
+func (b Build) IsSingleInstance() (bool, windows.Handle, error) {
+
+	mutexName := "Global\\630a2b47-6b7b-4928-9b12-88bc16312a93-" + b.Name
 
 	// Создаём мьютекс с bInitialOwner = true
 	mutex16, _ := syscall.UTF16PtrFromString(mutexName)
