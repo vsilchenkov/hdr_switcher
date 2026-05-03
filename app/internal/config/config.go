@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"go.yaml.in/yaml/v2"
 	gHotkey "golang.design/x/hotkey"
@@ -85,12 +86,12 @@ func (h HotkeyConfig) Parse() ([]gHotkey.Modifier, gHotkey.Key, error) {
 }
 
 func (h HotkeyConfig) String() string {
-	result := ""
+	var result strings.Builder
 	for i, m := range h.Modifiers {
 		if i > 0 {
-			result += "+"
+			result.WriteString("+")
 		}
-		result += m
+		result.WriteString(m)
 	}
-	return result + "+" + h.Key
+	return result.String() + "+" + h.Key
 }
